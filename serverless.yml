@@ -1,0 +1,45 @@
+service: kezzle-vit-serving
+frameworkVersion: "3"
+
+plugins:
+    - serverless-python-requirements
+    - serverless-dotenv-plugin
+
+provider:
+    name: aws
+    runtime: python3.11
+    stage: dev
+    region: ap-northeast-2
+
+custom:
+    pythonRequirements:
+        dockerizePip: non-linux
+
+package:
+    exclude:
+        - node_modules/**
+        - venv/**
+        - .env
+        - package-lock.json
+        - package.json
+        - efs-env.yml
+        - mongo-env.yml
+
+functions:
+    search-cake:
+        handler: main.lambda_handler
+        events:
+            - http:
+                  path: /cakes/similar-search
+                  method: get
+        timeout: 60
+        memorySize: 1536
+        fileSystemConfig:
+            localMountPath: ${file(./efs-env.yml):MOUNT_PATH}
+            arn: ${file(./efs-env.yml):EFSARN}
+        vpc:
+            securityGroupIds:
+                - ${file(./efs-env.yml):SGID}
+            subnetIds:
+                - ${file(./efs-env.yml):SUBNETID1}
+                - ${file(./efs-env.yml):SUBNETID2}
