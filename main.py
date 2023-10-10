@@ -51,27 +51,28 @@ def lambda_handler(event, context):
         vit_index = faiss.IndexFlatL2(1000)
         vit_index.add(vit_vectors)
         
-        _, indices = vit_index.search(np.array([db.cakes.find_one({"_id": id})['vit']]).astype('float32'), 500)
+        distances, indices = vit_index.search(np.array([db.cakes.find_one({"_id": id})['vit']]).astype('float32'), 500)
 
         result = []
 
         set_of_store_id = set()
-        for index in indices[0]:
+        for i, faiss_index in enumerate(indices[0]):
             if len(result) == size:
                 break
-            if str(cake_documents[index]['owner_store_id']) in set_of_store_id:
+            if str(cake_documents[faiss_index]['owner_store_id']) in set_of_store_id:
                 continue
 
             result.append(
                   {
-                    "id": str(cake_documents[index]['_id']),
-                    "image": cake_documents[index]['image'],
-                    "owner_store_id": str(cake_documents[index]['owner_store_id']),
-                    "createdAt": str(cake_documents[index]['createdAt']),
-                    "updatedAt": str(cake_documents[index]['updatedAt']),
+                    "id": str(cake_documents[faiss_index]['_id']),
+                    "image": cake_documents[faiss_index]['image'],
+                    "owner_store_id": str(cake_documents[faiss_index]['owner_store_id']),
+                    "createdAt": str(cake_documents[faiss_index]['createdAt']),
+                    "updatedAt": str(cake_documents[faiss_index]['updatedAt']),
+                    "score": float(distances[0][i])
                   }
             )
-            set_of_store_id.add(str(cake_documents[index]['owner_store_id']))
+            set_of_store_id.add(str(cake_documents[faiss_index]['owner_store_id']))
 
         return {
             "statusCode": 200,
