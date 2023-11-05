@@ -232,3 +232,4 @@ mongo-env.yml
 efs-env.yml
 
 node_modules
+ignore

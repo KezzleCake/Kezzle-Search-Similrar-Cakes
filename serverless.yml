@@ -24,10 +24,12 @@ package:
         - package.json
         - efs-env.yml
         - mongo-env.yml
+        - main-copy.py
+        - ignore/**
 
 functions:
     search-cake:
-        handler: main.lambda_handler
+        handler: app/main.lambda_handler
         events:
             - http:
                   path: /cakes/similar-search
