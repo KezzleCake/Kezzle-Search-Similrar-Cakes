@@ -61,9 +61,7 @@ def get_store_pipeline(longitude: float, latitude: float, distance: int, owner_s
             }
         },
         {
-            "$sample": {
-                "size": size
-            }
+            "$limit": size
         }
     ]
 
@@ -74,6 +72,7 @@ def get_cake_pipeline(stores_id_in_location: list, total_cake_documents: int, so
         {
             '$match': {
                     '$and': [
+                        {'is_delete': False},
                         {'owner_store_id': {'$in': stores_id_in_location}},
                         {'faiss_id': {'$lt': total_cake_documents}}
                     ]

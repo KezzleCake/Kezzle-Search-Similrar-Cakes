@@ -28,17 +28,50 @@ def to_json(bson: dict, score: float=None) -> dict:
 
     return json
 
-def get_similar_cakes_no_location(cake_document: dict, size: int) -> list:
+def get_similar_cakes_no_location(cake_document: dict, size: int, count_delete: int) -> list:
     distances, indices = vit_index.search(np.array([cake_document['vit']]).astype('float32'), total_cake_documents)
 
-    distances_list = list(map(lambda x: x / 100, distances[0][1:(size + 1)].tolist()))
-    faiss_ids = indices[0][1:(size + 1)].tolist()
+    distances_list = list(map(lambda x: x / 100, distances[0].tolist()))
+    faiss_ids = indices[0].tolist()
+
     zip_data = list(zip(distances_list, faiss_ids))
     zip_data.sort(key=lambda x: x[1])
-    
-    cake_documents = list(zip(zip_data, list(db.cakes.find({'faiss_id' : {'$in': faiss_ids}}).sort('faiss_id', pymongo.ASCENDING))))
-    cake_documents.sort(key=lambda x: x[0][0])
-    cake_documents = list(map(lambda x: to_json(x[1], x[0][0]), cake_documents))
+    sorted_distances = list(map(lambda x: x[0], zip_data))
+
+    pipeline = [
+		{
+            '$match': {
+                '$and': [
+                    {'is_delete': False},
+                    {'faiss_id': {'$in': faiss_ids[1:size + 1 + count_delete]}},
+                ]
+            }
+		},
+		{
+            '$project': {
+                'vit': 0,
+                'koclip': 0
+            }
+		},
+		{
+            '$addFields': {
+                'score': {
+                    '$arrayElemAt': [sorted_distances, '$faiss_id']
+                }
+            }
+		},
+		{
+            '$sort': {
+                'score': 1
+            }
+		},
+		{
+			'$limit': size
+		}
+    ]
+
+    cake_documents = list(db.cakes.aggregate(pipeline))
+    cake_documents = list(map(lambda x: to_json(x), cake_documents))
 
     return cake_documents
 
@@ -69,9 +102,11 @@ def get_similar_cakes_with_location(cake_document: dict, size: int, latitude: fl
     return result
 
 def lambda_handler(event: dict, context: dict) -> dict:
-    if db.counters.find_one({'sequenceName': 'cakes'})['seq'] != total_cake_documents:
+    if db.counters.find_one({'sequenceName': 'cakes'})['seq'] + 1 != total_cake_documents:
         global vit_index
+        global total_cake_documents
         vit_index = faiss.read_index(os.environ.get('INDEX_SAVE_PATH') + '/vit.index')
+        total_cake_documents = vit_index.ntotal
 
     try:
         queries = event['queryStringParameters']
@@ -84,7 +119,8 @@ def lambda_handler(event: dict, context: dict) -> dict:
             raise CakeNotFoundException()
 
         if (queries.get('lat') is None) or (queries.get('lon') is None) or (queries.get('dist') is None):
-            result = get_similar_cakes_no_location(cake_document, size)
+            count_delete = db.cakes.count_documents({'is_delete': True})
+            result = get_similar_cakes_no_location(cake_document, size, count_delete)
         else:
             latitude = float(queries['lat'])
             longitude = float(queries['lon'])
