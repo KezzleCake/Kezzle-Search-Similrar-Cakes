@@ -102,9 +102,9 @@ def get_similar_cakes_with_location(cake_document: dict, size: int, latitude: fl
     return result
 
 def lambda_handler(event: dict, context: dict) -> dict:
+    global vit_index
+    global total_cake_documents
     if db.counters.find_one({'sequenceName': 'cakes'})['seq'] + 1 != total_cake_documents:
-        global vit_index
-        global total_cake_documents
         vit_index = faiss.read_index(os.environ.get('INDEX_SAVE_PATH') + '/vit.index')
         total_cake_documents = vit_index.ntotal
 
